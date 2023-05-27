@@ -67,14 +67,8 @@ Tab:AddButton({
 Tab:AddButton({
 	Name = "Makuro hub",
 	Callback = function()
-        loaloadstring(game:HttpGet("https://raw.githubusercontent.com/xDepressionx/Free-Script/main/BloxFruit.lua"))()
+        loadstring(game:HttpGet"https://raw.githubusercontent.com/xQuartyx/DonateMe/main/ScriptLoader")()
   	end    
 })
 
-Tab:AddButton({
-	Name = "Hoho Hub",
-	Callback = function()
-        loadstring(game:HttpGet('https://raw.githubusercontent.com/acsu123/HOHO_H/main/Loading_UI'))()
-  	end    
-})
 
