@@ -65,9 +65,9 @@ Tab:AddButton({
 })
 
 Tab:AddButton({
-	Name = "blox fruit aimbot",
+	Name = "Makuro hub",
 	Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/xlostpexz/WinterHub/Fps/Keysystem.lua"))()
+        loaloadstring(game:HttpGet("https://raw.githubusercontent.com/xDepressionx/Free-Script/main/BloxFruit.lua"))()
   	end    
 })
 
@@ -78,38 +78,3 @@ Tab:AddButton({
   	end    
 })
 
-Tab:AddButton({
-	Name = "Lol Hub",
-	Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/1f0yt/community/main/neon"))()
-  	end    
-})
-
-Tab:AddButton({
-	Name = "Zen Hub",
-	Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Kaizenofficiall/ZenHub/main/Loader", true))()
-  	end    
-})
-
-Tab:AddButton({
-	Name = "Uranium/Switch Hub",
-	Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Augustzyzx/UraniumX/main/src_.lua.txt"))()
-  	end    
-})
-
-
-Tab:AddButton({
-	Name = "Thunder Z",
-	Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/ThunderZ-05/HUB/main/Mobile-Loader"))()
-  	end    
-})
-
-Tab:AddButton({
-	Name = "Mukuro Hub",
-	Callback = function()
-        loaloadstring(game:HttpGet("https://raw.githubusercontent.com/xDepressionx/Free-Script/main/BloxFruit.lua"))()
-  	end    
-})
