@@ -71,4 +71,18 @@ Tab:AddButton({
   	end    
 })
 
+Tab:AddButton({
+	Name = "Zaque hub",
+	Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Mei2232/ZaqueHub/main/Zaque%20Hub"))()
+  	end    
+})
+
+Tab:AddButton({
+	Name = "Banana hub",
+	Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaHub.lua"))()
+  	end    
+})
+
 
