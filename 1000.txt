@@ -1,0 +1,172 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+
+-- ========== UI 創建 ==========
+local ui = Instance.new("ScreenGui")
+ui.Name = "SizeControlUI"
+ui.Parent = PlayerGui
+
+local panel = Instance.new("Frame")
+panel.Size = UDim2.new(0, 200, 0, 140)
+panel.Position = UDim2.new(0.5, -100, 0.5, -70)
+panel.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+panel.BackgroundTransparency = 0.3
+panel.Active = true
+panel.Draggable = true
+panel.Parent = ui
+
+local titleBar = Instance.new("TextLabel")
+titleBar.Size = UDim2.new(1, 0, 0, 22)
+titleBar.BackgroundColor3 = Color3.new(0.25, 0.25, 0.35)
+titleBar.Text = "體型控制（1000倍上限）"
+titleBar.TextColor3 = Color3.new(1, 1, 1)
+titleBar.TextSize = 11
+titleBar.TextXAlignment = Enum.TextXAlignment.Center
+titleBar.Parent = panel
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseUI"
+closeBtn.Size = UDim2.new(0, 18, 0, 18)
+closeBtn.Position = UDim2.new(1, -21, 0, 2)
+closeBtn.BackgroundColor3 = Color3.new(0.8, 0.2, 0.2)
+closeBtn.Text = "×"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.TextSize = 12
+closeBtn.TextXAlignment = Enum.TextXAlignment.Center
+closeBtn.Parent = panel
+closeBtn.MouseButton1Click:Connect(function()
+    ui:Destroy()
+end)
+
+local sizeLabel = Instance.new("TextLabel")
+sizeLabel.Size = UDim2.new(1, 0, 0, 22)
+sizeLabel.Position = UDim2.new(0, 0, 0, 22)
+sizeLabel.BackgroundTransparency = 1
+sizeLabel.Text = "當前體型：1.0x"
+sizeLabel.TextColor3 = Color3.new(1, 1, 1)
+sizeLabel.TextSize = 12
+sizeLabel.TextScaled = false
+sizeLabel.Parent = panel
+
+-- 放大按鈕
+local enlargeBtn = Instance.new("TextButton")
+enlargeBtn.Size = UDim2.new(0.45, 0, 0, 28)
+enlargeBtn.Position = UDim2.new(0, 5, 0, 50)
+enlargeBtn.BackgroundColor3 = Color3.new(0.2, 0.7, 0.2)
+enlargeBtn.Text = "放大"
+enlargeBtn.TextColor3 = Color3.new(1, 1, 1)
+enlargeBtn.TextSize = 12
+enlargeBtn.TextScaled = false
+enlargeBtn.Parent = panel
+
+-- 縮小按鈕
+local shrinkBtn = Instance.new("TextButton")
+shrinkBtn.Size = UDim2.new(0.45, 0, 0, 28)
+shrinkBtn.Position = UDim2.new(0.5, 5, 0, 50)
+shrinkBtn.BackgroundColor3 = Color3.new(0.7, 0.2, 0.2)
+shrinkBtn.Text = "縮小"
+shrinkBtn.TextColor3 = Color3.new(1, 1, 1)
+shrinkBtn.TextSize = 12
+shrinkBtn.TextScaled = false
+shrinkBtn.Parent = panel
+
+-- 自訂體型輸入
+local inputBox = Instance.new("TextBox")
+inputBox.Size = UDim2.new(0.65, 0, 0, 22) -- 留出空間給確認按鈕
+inputBox.Position = UDim2.new(0.05, 0, 0, 80)
+inputBox.PlaceholderText = "輸入倍數 (1~1000)"
+inputBox.Text = ""
+inputBox.ClearTextOnFocus = true
+inputBox.TextColor3 = Color3.new(1,1,1)
+inputBox.BackgroundColor3 = Color3.new(0.25,0.25,0.25)
+inputBox.TextSize = 12
+inputBox.TextScaled = false
+inputBox.Parent = panel
+
+-- 確認按鈕
+local applyBtn = Instance.new("TextButton")
+applyBtn.Size = UDim2.new(0.25, 0, 0, 22)
+applyBtn.Position = UDim2.new(0.72, 0, 0, 80) -- 放在輸入框旁邊
+applyBtn.BackgroundColor3 = Color3.fromRGB(50,150,200)
+applyBtn.Text = "確定"
+applyBtn.TextColor3 = Color3.new(1,1,1)
+applyBtn.TextSize = 12
+applyBtn.TextScaled = false
+applyBtn.Parent = panel
+
+-- 作者標籤
+local authorLabel = Instance.new("TextLabel")
+authorLabel.Size = UDim2.new(1, 0, 0, 18)
+authorLabel.Position = UDim2.new(0, 0, 0, 110)
+authorLabel.BackgroundTransparency = 1
+authorLabel.Text = "by : Salmon"
+authorLabel.TextColor3 = Color3.fromRGB(180,180,180)
+authorLabel.TextSize = 11
+authorLabel.TextScaled = false
+authorLabel.Parent = panel
+
+-- ========== 核心邏輯 ==========
+local currentSize = 1.0
+local sizeStep = 0.8
+local sizeLimit = {min=0.0001, max=1000.0}
+local char = player.Character or player.CharacterAdded:Wait()
+
+local function updateLabel()
+    sizeLabel.Text = string.format("當前體型：%.2fx", currentSize)
+    sizeLabel.TextColor3 = Color3.new(1,1,1)
+end
+
+local function applySize()
+    local val = tonumber(inputBox.Text)
+    if val and val >= sizeLimit.min and val <= sizeLimit.max then
+        currentSize = val
+        if char then
+            char:ScaleTo(currentSize)
+        end
+        updateLabel()
+    else
+        sizeLabel.Text = "輸入無效！(1~1000)"
+        sizeLabel.TextColor3 = Color3.new(1,0.5,0.5)
+        task.wait(1.5)
+        updateLabel()
+    end
+end
+
+-- 放大
+enlargeBtn.MouseButton1Click:Connect(function()
+    if char then
+        currentSize = math.min(currentSize + sizeStep, sizeLimit.max)
+        char:ScaleTo(currentSize)
+        updateLabel()
+    else
+        sizeLabel.Text = "角色未加載！"
+    end
+end)
+
+-- 縮小
+shrinkBtn.MouseButton1Click:Connect(function()
+    if char then
+        currentSize = math.max(currentSize - sizeStep, sizeLimit.min)
+        char:ScaleTo(currentSize)
+        updateLabel()
+    else
+        sizeLabel.Text = "角色未加載！"
+    end
+end)
+
+-- 按 Enter 應用自訂體型
+inputBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        applySize()
+    end
+end)
+
+-- 點擊確認按鈕應用
+applyBtn.MouseButton1Click:Connect(applySize)
+
+-- 角色加載時套用體型
+player.CharacterAdded:Connect(function(c)
+    char = c
+    char:ScaleTo(currentSize)
+end)
