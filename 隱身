@@ -1,0 +1,34 @@
+-- LocalScript 放在 StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+local function hideCharacter(character)
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") or part:IsA("Decal") then
+            part.Transparency = 1         -- 完全透明
+            if part:IsA("BasePart") then
+                part.CanCollide = false   -- 可選：隱形時不碰撞
+            end
+        elseif part:IsA("BillboardGui") or part:IsA("SurfaceGui") then
+            part.Enabled = false
+        end
+    end
+
+    -- 隱藏所有穿戴的物品（帽子、裝備）
+    for _, accessory in pairs(character:GetChildren()) do
+        if accessory:IsA("Accessory") then
+            accessory.Handle.Transparency = 1
+        end
+    end
+end
+
+-- 角色生成時自動隱身
+local function onCharacterAdded(character)
+    hideCharacter(character)
+end
+
+if player.Character then
+    hideCharacter(player.Character)
+end
+player.CharacterAdded:Connect(onCharacterAdded)
