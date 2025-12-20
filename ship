@@ -1,0 +1,84 @@
+local player = game.Players.LocalPlayer
+
+-- HumanoidRootPart を取得する関数
+local function getHumanoidRootPart()
+    local character = player.Character or player.CharacterAdded:Wait()
+    return character:FindFirstChild("HumanoidRootPart")
+end
+
+-- GUI削除（既存のGUIがあれば）
+if player.PlayerGui:FindFirstChild("TeleportGui") then
+    player.PlayerGui.TeleportGui:Destroy()
+end
+
+-- GUI作成
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TeleportGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- 鬼船テレポートボタン
+local ghostButton = Instance.new("TextButton")
+ghostButton.Size = UDim2.new(0, 120, 0, 50)
+ghostButton.Position = UDim2.new(0, 50, 0, 100)
+ghostButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+ghostButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ghostButton.Text = "鬼船"
+ghostButton.Font = Enum.Font.SourceSansBold
+ghostButton.TextSize = 20
+ghostButton.Parent = screenGui
+ghostButton.Active = true
+ghostButton.Draggable = true
+
+-- 鬼船座標
+local ghostShipCFrame = CFrame.new(916, 252.3, 32910)
+
+ghostButton.MouseButton1Click:Connect(function()
+    local hrp = getHumanoidRootPart()
+    if hrp then
+        hrp.CFrame = ghostShipCFrame
+        print("テレポート：鬼船")
+    else
+        warn("HumanoidRootPartが見つかりません。")
+    end
+end)
+
+-- Shift + G 快捷鍵傳送到鬼船
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.G and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+        local hrp = getHumanoidRootPart()
+        if hrp then
+            hrp.CFrame = ghostShipCFrame
+            print("Shift + G テレポート：鬼船")
+        else
+            warn("HumanoidRootPartが見つかりません。")
+        end
+    end
+end)
+
+-- 新增紅色按鈕（座標：-393, 325, 640）
+local redButton = Instance.new("TextButton")
+redButton.Size = UDim2.new(0, 120, 0, 50)
+redButton.Position = UDim2.new(0, 50, 0, 170)  -- 放在鬼船按鈕下方
+redButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+redButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+redButton.Text = "紅色傳送"
+redButton.Font = Enum.Font.SourceSansBold
+redButton.TextSize = 20
+redButton.Parent = screenGui
+redButton.Active = true
+redButton.Draggable = true
+
+local redCFrame = CFrame.new(-393, 325, 640)
+
+redButton.MouseButton1Click:Connect(function()
+    local hrp = getHumanoidRootPart()
+    if hrp then
+        hrp.CFrame = redCFrame
+        print("テレポート：紅色座標")
+    else
+        warn("HumanoidRootPartが見つかりません。")
+    end
+end)
