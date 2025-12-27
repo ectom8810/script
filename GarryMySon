@@ -1,9 +1,8 @@
-_G.FastAttack = true
+_G.FastAttackEnabled = true
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local Player = Players.LocalPlayer
 
 local Enemies = workspace:WaitForChild("Enemies")
@@ -13,39 +12,33 @@ local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
 local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
 local RegisterHit = Net:WaitForChild("RE/RegisterHit")
 
--- ===== 參數（已是極限）=====
-local ATTACK_DISTANCE = 100000000 -- 100k
-local ATTACK_DISTANCE_SQ = ATTACK_DISTANCE * ATTACK_DISTANCE
+-- ====== 參數 ======
+local DETECT_RANGE = 1000       -- 偵測範圍，500/880/1000 Stud 都可設定
+local USE_HRP = true
+local ATTACK_CD = 0             -- 每幀攻擊
 
-local ATTACK_CD = 0.0000000000000000000000000000000000000000000001     -- RegisterAttack 降頻（越低越兇，<0.07 易炸）
-local USE_HRP = true       -- HRP 命中更穩
-
--- ===== 狀態 =====
-local lastAttack = 0
-local conn
-
--- ===== 工具 =====
+-- ====== 工具函數 ======
 local function Alive(char)
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     return hum and hum.Health > 0
 end
 
 local function GetPart(enemy)
-    if USE_HRP then
-        return enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head")
-    end
-    return enemy:FindFirstChild("Head")
+    return enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head")
 end
 
-local function CollectAllTargets()
+-- ====== 收集目標 ======
+local function CollectTargets()
     local targets = {}
     local basePart = nil
+    local myRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil, targets end
 
-    for _, folder in ipairs({Enemies, Characters}) do
+    local function ProcessFolder(folder)
         for _, enemy in ipairs(folder:GetChildren()) do
             if enemy ~= Player.Character and Alive(enemy) then
                 local part = GetPart(enemy)
-                if part then
+                if part and (part.Position - myRoot.Position).Magnitude <= DETECT_RANGE then
                     targets[#targets+1] = {enemy, part}
                     basePart = basePart or part
                 end
@@ -53,26 +46,20 @@ local function CollectAllTargets()
         end
     end
 
+    ProcessFolder(Enemies)
+    ProcessFolder(Characters)
+
     return basePart, targets
 end
 
--- ===== 主循環：每幀 =====
-conn = RunService.Heartbeat:Connect(function()
-    if not _G.FastAttack then return end
-
-    local char = Player.Character
-    local tool = char and char:FindFirstChildOfClass("Tool")
-    if not tool or tool.ToolTip == "Gun" then return end
-
-    local basePart, targets = CollectAllTargets()
-    if not basePart or #targets == 0 then return end
-
-    -- 降頻 RegisterAttack（但 RegisterHit 每幀）
-    local now = tick()
-    if now - lastAttack >= ATTACK_CD then
+-- ====== 每幀攻擊 ======
+RunService.Heartbeat:Connect(function()
+    if not _G.FastAttackEnabled then return end
+    local basePart, targets = CollectTargets()
+    if basePart and #targets > 0 then
         RegisterAttack:FireServer(0)
-        lastAttack = now
+        RegisterHit:FireServer(basePart, targets)
     end
-
-    RegisterHit:FireServer(basePart, targets)
 end)
+
+print("🚀 快速攻擊 + 擴大偵測範圍已啟動，偵測範圍："..DETECT_RANGE.." Stud")
