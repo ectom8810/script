@@ -1,3 +1,45 @@
+-- ===== 重複匯入安全 Loader =====
+
+-- 如果已存在舊實例 → 先卸載
+if _G.__FAST_ATTACK_LOADER__ then
+    _G.__FAST_ATTACK_LOADER__.Stop()
+end
+
+-- 建立新 Loader
+local Loader = {
+    Running = true,
+    Connections = {}
+}
+
+_G.__FAST_ATTACK_LOADER__ = Loader
+
+-- ===== 快捷連線註冊 =====
+local function Track(conn)
+    table.insert(Loader.Connections, conn)
+    return conn
+end
+
+-- ===== 停止 / 卸載 =====
+function Loader.Stop()
+    if not Loader.Running then return end
+    Loader.Running = false
+
+    for _, conn in ipairs(Loader.Connections) do
+        pcall(function()
+            conn:Disconnect()
+        end)
+    end
+
+    Loader.Connections = {}
+    _G.__FAST_ATTACK_LOADER__ = nil
+
+    warn("⛔ FastAttack Loader 已卸載")
+end
+
+--------------------------------------------------
+-- 🔽 🔽 🔽 下面開始放你的「真正腳本」 🔽 🔽 🔽
+--------------------------------------------------
+
 _G.FastAttackEnabled = true
 
 -- ===== Services =====
@@ -9,19 +51,16 @@ local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 
 local Enemies = workspace:WaitForChild("Enemies")
+local Characters = workspace:WaitForChild("Characters")
 
 local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
 local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
 local RegisterHit = Net:WaitForChild("RE/RegisterHit")
 
--- ===== 參數（持續輸出核心）=====
-local SCAN_RANGE = 850            -- 找敵人用
-local HIT_RANGE = 420             -- 真實命中距離
-local HITBOX_SIZE = Vector3.new(420,420,420)
-
-local BASE_INTERVAL = 0.045       -- 基礎攻速
-local MIN_INTERVAL = 0.02         -- 最快上限
-local MAX_TARGETS_SPEEDUP = 6     -- 幾隻怪時達到最快
+-- ===== 參數（重點）=====
+local DETECT_RANGE = 1000              -- 偵測敵人距離（穩）
+local HITBOX_SIZE = Vector3.new(450,450,450) -- 伺服器判定範圍
+local ATTACK_INTERVAL = 0             -- 0 = 每幀（可改 0.03 更穩）
 
 -- ===== 工具 =====
 local function Alive(char)
@@ -33,15 +72,15 @@ local function GetPart(enemy)
     return enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head")
 end
 
--- ===== 偽裝 Hitbox（瞬時）=====
+-- ===== 偽裝 Hitbox =====
 local HRP
 local ORIGINAL_SIZE
 
 local function ExpandHRP()
     HRP = Character:FindFirstChild("HumanoidRootPart")
     if not HRP then return end
-    ORIGINAL_SIZE = ORIGINAL_SIZE or HRP.Size
 
+    ORIGINAL_SIZE = ORIGINAL_SIZE or HRP.Size
     HRP.Size = HITBOX_SIZE
     HRP.Transparency = 1
     HRP.LocalTransparencyModifier = 1
@@ -54,19 +93,18 @@ local function RestoreHRP()
     end
 end
 
--- ===== 收集可命中目標 =====
+-- ===== 收集目標 =====
 local function CollectTargets()
     local targets = {}
     local basePart
     local myRoot = Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil, targets end
 
-    for _, enemy in ipairs(Enemies:GetChildren()) do
-        if enemy ~= Character and Alive(enemy) then
-            local part = GetPart(enemy)
-            if part then
-                local dist = (part.Position - myRoot.Position).Magnitude
-                if dist <= HIT_RANGE then
+    local function Scan(folder)
+        for _, enemy in ipairs(folder:GetChildren()) do
+            if enemy ~= Character and Alive(enemy) then
+                local part = GetPart(enemy)
+                if part and (part.Position - myRoot.Position).Magnitude <= DETECT_RANGE then
                     targets[#targets+1] = {enemy, part}
                     basePart = basePart or part
                 end
@@ -74,35 +112,37 @@ local function CollectTargets()
         end
     end
 
+    Scan(Enemies)
+    Scan(Characters)
+
     return basePart, targets
 end
 
--- ===== 持續輸出主循環 =====
+-- ===== FastAttack 主循環 =====
 local lastAttack = 0
 
-RunService.RenderStepped:Connect(function()
+RunService.Heartbeat:Connect(function()
     if not _G.FastAttackEnabled then return end
-
-    local basePart, targets = CollectTargets()
-    if not basePart or #targets == 0 then return end
-
-    -- 目標越多，攻速越快（但有上限）
-    local speedFactor = math.clamp(#targets / MAX_TARGETS_SPEEDUP, 0, 1)
-    local interval = BASE_INTERVAL - (BASE_INTERVAL - MIN_INTERVAL) * speedFactor
-
-    if os.clock() - lastAttack < interval then return end
+    if os.clock() - lastAttack < ATTACK_INTERVAL then return end
     lastAttack = os.clock()
 
-    ExpandHRP()
-    RegisterAttack:FireServer(0)
-    RegisterHit:FireServer(basePart, targets)
-    RestoreHRP()
+    local basePart, targets = CollectTargets()
+    if basePart and #targets > 0 then
+        -- 只在這一幀放大
+        ExpandHRP()
+
+        RegisterAttack:FireServer(0)
+        RegisterHit:FireServer(basePart, targets)
+
+        -- 立刻還原
+        RestoreHRP()
+    end
 end)
 
--- ===== 重生處理 =====
-Player.CharacterAdded:Connect(function(c)
-    Character = c
+-- ===== 角色重生處理 =====
+Player.CharacterAdded:Connect(function(char)
+    Character = char
     ORIGINAL_SIZE = nil
 end)
 
-print("🔥 持續輸出版 FastAttack 已啟動（穩定連砍）")
+
