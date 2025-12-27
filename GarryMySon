@@ -1,99 +1,78 @@
--- 設定全域開關
-_G.FastAttackEnabled = false
+_G.FastAttack = true
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Player = Players.LocalPlayer
 
--- 等待 Remotes
-local function SafeWaitForChild(parent, childName)
-    local success, result = pcall(function()
-        return parent:WaitForChild(childName)
-    end)
-    if not success or not result then
-        warn("找不到: " .. childName)
+local Enemies = workspace:WaitForChild("Enemies")
+local Characters = workspace:WaitForChild("Characters")
+
+local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
+local RegisterHit = Net:WaitForChild("RE/RegisterHit")
+
+-- ===== 參數（已是極限）=====
+local ATTACK_DISTANCE = 100000000 -- 100k
+local ATTACK_DISTANCE_SQ = ATTACK_DISTANCE * ATTACK_DISTANCE
+
+local ATTACK_CD = 0.0000000000000000000000000000000000000000000001     -- RegisterAttack 降頻（越低越兇，<0.07 易炸）
+local USE_HRP = true       -- HRP 命中更穩
+
+-- ===== 狀態 =====
+local lastAttack = 0
+local conn
+
+-- ===== 工具 =====
+local function Alive(char)
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
+end
+
+local function GetPart(enemy)
+    if USE_HRP then
+        return enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head")
     end
-    return result
+    return enemy:FindFirstChild("Head")
 end
 
-local Remotes = SafeWaitForChild(ReplicatedStorage, "Remotes")
-local Validator = SafeWaitForChild(Remotes, "Validator")
-local RegisterAttack = SafeWaitForChild(Remotes, "RE/RegisterAttack")
-local RegisterHit = SafeWaitForChild(Remotes, "RE/RegisterHit")
-
-local WorkspaceEnemies = game:GetService("Workspace"):WaitForChild("Enemies")
-local WorkspaceCharacters = game:GetService("Workspace"):WaitForChild("Characters")
-
--- 設定距離
-local AttackDistance = 100000 -- 100k 米
-local ClickDelay = 0 -- 最快攻擊
-
--- 判斷是否活著
-local function IsAlive(character)
-    return character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0
-end
-
--- 取得範圍內敵人
-local function GetEnemies()
+local function CollectAllTargets()
     local targets = {}
-    for _, enemy in ipairs(WorkspaceEnemies:GetChildren()) do
-        if IsAlive(enemy) and enemy ~= Player.Character then
-            local head = enemy:FindFirstChild("Head")
-            if head and Player:DistanceFromCharacter(head.Position) <= AttackDistance then
-                table.insert(targets, {enemy, head})
+    local basePart = nil
+
+    for _, folder in ipairs({Enemies, Characters}) do
+        for _, enemy in ipairs(folder:GetChildren()) do
+            if enemy ~= Player.Character and Alive(enemy) then
+                local part = GetPart(enemy)
+                if part then
+                    targets[#targets+1] = {enemy, part}
+                    basePart = basePart or part
+                end
             end
         end
     end
-    for _, enemy in ipairs(WorkspaceCharacters:GetChildren()) do
-        if IsAlive(enemy) and enemy ~= Player.Character then
-            local head = enemy:FindFirstChild("Head")
-            if head and Player:DistanceFromCharacter(head.Position) <= AttackDistance then
-                table.insert(targets, {enemy, head})
-            end
-        end
+
+    return basePart, targets
+end
+
+-- ===== 主循環：每幀 =====
+conn = RunService.Heartbeat:Connect(function()
+    if not _G.FastAttack then return end
+
+    local char = Player.Character
+    local tool = char and char:FindFirstChildOfClass("Tool")
+    if not tool or tool.ToolTip == "Gun" then return end
+
+    local basePart, targets = CollectAllTargets()
+    if not basePart or #targets == 0 then return end
+
+    -- 降頻 RegisterAttack（但 RegisterHit 每幀）
+    local now = tick()
+    if now - lastAttack >= ATTACK_CD then
+        RegisterAttack:FireServer(0)
+        lastAttack = now
     end
-    return targets
-end
 
--- 攻擊敵人
-local function AttackTargets(targets)
-    if #targets == 0 then return end
-    local mainTarget = targets[1][2]
-    RegisterAttack:FireServer(ClickDelay)
-    RegisterHit:FireServer(mainTarget, targets)
-end
-
--- 持續快速攻擊
-local attackLoop
-local function StartFastAttack()
-    if attackLoop then return end
-    attackLoop = RunService.Heartbeat:Connect(function()
-        if _G.FastAttackEnabled then
-            local targets = GetEnemies()
-            AttackTargets(targets)
-        end
-    end)
-end
-
-local function StopFastAttack()
-    if attackLoop then
-        attackLoop:Disconnect()
-        attackLoop = nil
-    end
-end
-
--- 一鍵開關
-function ToggleFastAttack()
-    _G.FastAttackEnabled = not _G.FastAttackEnabled
-    if _G.FastAttackEnabled then
-        print("快速攻擊 ✅ 開啟")
-        StartFastAttack()
-    else
-        print("快速攻擊 ⏹️ 關閉")
-        StopFastAttack()
-    end
-end
-
--- 直接啟動
-ToggleFastAttack()
+    RegisterHit:FireServer(basePart, targets)
+end)
