@@ -1,101 +1,108 @@
-_G.AdaptiveAttack = true
+_G.FastAttackEnabled = true
 
 -- ===== Services =====
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 
 local Enemies = workspace:WaitForChild("Enemies")
-local Characters = workspace:WaitForChild("Characters")
 
 local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
-local RegisterAttack = Net.RE:RegisterAttack()
-local RegisterHit = Net.RE:RegisterHit()
+local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
+local RegisterHit = Net:WaitForChild("RE/RegisterHit")
 
--- ===== 參數 =====
-local SCAN_RANGE = 420
-local MAX_TOKENS = 6            -- 最大連擊數
-local TOKEN_REGEN = 0.12        -- 回復速度
-local MOVE_THRESHOLD = 6        -- 移動多少 stud 才重新計算
+-- ===== 參數（持續輸出核心）=====
+local SCAN_RANGE = 850            -- 找敵人用
+local HIT_RANGE = 420             -- 真實命中距離
+local HITBOX_SIZE = Vector3.new(420,420,420)
 
--- ===== 狀態 =====
-local tokens = MAX_TOKENS
-local lastPos
-local lastTargetCount = 0
+local BASE_INTERVAL = 0.045       -- 基礎攻速
+local MIN_INTERVAL = 0.02         -- 最快上限
+local MAX_TARGETS_SPEEDUP = 6     -- 幾隻怪時達到最快
 
 -- ===== 工具 =====
 local function Alive(char)
-    local h = char and char:FindFirstChildOfClass("Humanoid")
-    return h and h.Health > 0
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
 end
 
 local function GetPart(enemy)
     return enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head")
 end
 
-local function CollectTargets()
-    local list = {}
-    local base
-    local hrp = Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil, list end
+-- ===== 偽裝 Hitbox（瞬時）=====
+local HRP
+local ORIGINAL_SIZE
 
-    local function scan(folder)
-        for _, e in ipairs(folder:GetChildren()) do
-            if e ~= Character and Alive(e) then
-                local p = GetPart(e)
-                if p and (p.Position - hrp.Position).Magnitude <= SCAN_RANGE then
-                    list[#list+1] = {e, p}
-                    base = base or p
+local function ExpandHRP()
+    HRP = Character:FindFirstChild("HumanoidRootPart")
+    if not HRP then return end
+    ORIGINAL_SIZE = ORIGINAL_SIZE or HRP.Size
+
+    HRP.Size = HITBOX_SIZE
+    HRP.Transparency = 1
+    HRP.LocalTransparencyModifier = 1
+    HRP.CanCollide = false
+end
+
+local function RestoreHRP()
+    if HRP and ORIGINAL_SIZE then
+        HRP.Size = ORIGINAL_SIZE
+    end
+end
+
+-- ===== 收集可命中目標 =====
+local function CollectTargets()
+    local targets = {}
+    local basePart
+    local myRoot = Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil, targets end
+
+    for _, enemy in ipairs(Enemies:GetChildren()) do
+        if enemy ~= Character and Alive(enemy) then
+            local part = GetPart(enemy)
+            if part then
+                local dist = (part.Position - myRoot.Position).Magnitude
+                if dist <= HIT_RANGE then
+                    targets[#targets+1] = {enemy, part}
+                    basePart = basePart or part
                 end
             end
         end
     end
 
-    scan(Enemies)
-    scan(Characters)
-
-    return base, list
+    return basePart, targets
 end
 
--- ===== Token 回復（低頻，非常乾淨）=====
-task.spawn(function()
-    while _G.AdaptiveAttack do
-        tokens = math.min(MAX_TOKENS, tokens + 1)
-        task.wait(TOKEN_REGEN)
-    end
-end)
+-- ===== 持續輸出主循環 =====
+local lastAttack = 0
 
--- ===== 監控移動與目標變化 =====
-RunService.Stepped:Connect(function()
-    if not _G.AdaptiveAttack then return end
+RunService.RenderStepped:Connect(function()
+    if not _G.FastAttackEnabled then return end
 
-    local hrp = Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    local basePart, targets = CollectTargets()
+    if not basePart or #targets == 0 then return end
 
-    local moved = not lastPos or (hrp.Position - lastPos).Magnitude >= MOVE_THRESHOLD
-    lastPos = hrp.Position
+    -- 目標越多，攻速越快（但有上限）
+    local speedFactor = math.clamp(#targets / MAX_TARGETS_SPEEDUP, 0, 1)
+    local interval = BASE_INTERVAL - (BASE_INTERVAL - MIN_INTERVAL) * speedFactor
 
-    local base, targets = CollectTargets()
-    local targetChanged = #targets ~= lastTargetCount
-    lastTargetCount = #targets
+    if os.clock() - lastAttack < interval then return end
+    lastAttack = os.clock()
 
-    -- 只有在「有意義的狀況」才攻擊
-    if tokens > 0 and base and #targets > 0 and (moved or targetChanged) then
-        tokens -= 1
-
-        RegisterAttack:FireServer(0)
-        RegisterHit:FireServer(base, targets)
-    end
+    ExpandHRP()
+    RegisterAttack:FireServer(0)
+    RegisterHit:FireServer(basePart, targets)
+    RestoreHRP()
 end)
 
 -- ===== 重生處理 =====
 Player.CharacterAdded:Connect(function(c)
     Character = c
-    tokens = MAX_TOKENS
-    lastPos = nil
+    ORIGINAL_SIZE = nil
 end)
 
-print("🧠 Adaptive Burst Attack 已啟動（非暴力型功速）")
+print("🔥 持續輸出版 FastAttack 已啟動（穩定連砍）")
