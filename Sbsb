@@ -1,0 +1,270 @@
+--==================================================
+--  瘛∠�匧�𢠃�𤩺�� UI 憭𡁻�蝐歹�嚹oggle + Slider 摰峕㟲���
+--==================================================
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+
+--==================================================
+-- 銝駁��
+--==================================================
+local THEME = {
+    Main   = Color3.fromRGB(255,182,193), -- 瘛∠��
+    Dark   = Color3.fromRGB(35,35,45),
+    Stroke = Color3.fromRGB(255,200,210),
+    Text   = Color3.fromRGB(255,240,245)
+}
+
+--==================================================
+-- UI �抅�𧋦
+--==================================================
+local ui = Instance.new("ScreenGui")
+ui.Name = "PinkControlUI"
+ui.ResetOnSpawn = false
+ui.Parent = PlayerGui
+
+-- �𢒰�踎
+local panel = Instance.new("Frame")
+panel.Size = UDim2.new(0,250,0,200)
+panel.Position = UDim2.new(0.5,-125,0.5,-100)
+panel.BackgroundColor3 = THEME.Dark
+panel.BackgroundTransparency = 0.15
+panel.Active = true
+panel.Draggable = true
+panel.ZIndex = 1
+panel.Parent = ui
+
+local panelCorner = Instance.new("UICorner")
+panelCorner.CornerRadius = UDim.new(0,14)
+panelCorner.Parent = panel
+
+local panelStroke = Instance.new("UIStroke")
+panelStroke.Color = THEME.Stroke
+panelStroke.Thickness = 1
+panelStroke.Transparency = 0.35
+panelStroke.Parent = panel
+
+--==================================================
+-- Title Bar
+--==================================================
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,28)
+title.BackgroundTransparency = 1
+title.Text = "慦賜�璆𦠜㺿���"
+title.Font = Enum.Font.GothamMedium
+title.TextSize = 13
+title.TextColor3 = THEME.Text
+title.Parent = panel
+
+-- ��𣈯��
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0,20,0,20)
+closeBtn.Position = UDim2.new(1,-26,0,4)
+closeBtn.Text = "��"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.TextColor3 = Color3.new(1,1,1)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200,80,90)
+closeBtn.Parent = panel
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(1,0)
+closeCorner.Parent = closeBtn
+
+closeBtn.MouseButton1Click:Connect(function()
+    ui:Destroy()
+end)
+
+--==================================================
+-- ��蝐文�
+--==================================================
+local tabs = {}
+local pages = {}
+
+local tabNames = {"隞讠晶", "��蠘��", "閮剖��", "�嗡��"} -- �虾隞亥䌊撌望楲��
+
+local tabHolder = Instance.new("Frame")
+tabHolder.Size = UDim2.new(1,0,0,28)
+tabHolder.Position = UDim2.new(0,0,0,28)
+tabHolder.BackgroundTransparency = 1
+tabHolder.Parent = panel
+
+local tabSpacing = 4
+local tabWidth = (panel.Size.X.Offset - (#tabNames+1)*tabSpacing) / #tabNames
+
+for i, name in ipairs(tabNames) do
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Size = UDim2.new(0,tabWidth,1,0)
+    tabBtn.Position = UDim2.new(0,tabSpacing*i + tabWidth*(i-1),0,0)
+    tabBtn.Text = name
+    tabBtn.Font = Enum.Font.Gotham
+    tabBtn.TextSize = 12
+    tabBtn.TextColor3 = THEME.Text
+    tabBtn.BackgroundColor3 = Color3.fromRGB(70,70,80)
+    tabBtn.Parent = tabHolder
+
+    local tabCorner = Instance.new("UICorner")
+    tabCorner.CornerRadius = UDim.new(0,8)
+    tabCorner.Parent = tabBtn
+
+    local page = Instance.new("Frame")
+    page.Size = UDim2.new(1,-20,1,-60)
+    page.Position = UDim2.new(0,10,0,60)
+    page.BackgroundTransparency = 1
+    page.Visible = (i == 1) -- 蝚砌�����鞱身憿舐內
+    page.Parent = panel
+
+    tabBtn.MouseButton1Click:Connect(function()
+        for _, p in ipairs(pages) do p.Visible = false end
+        page.Visible = true
+    end)
+
+    tabs[i] = tabBtn
+    pages[i] = page
+end
+
+--==================================================
+-- ��蠘�賡�嚗�𦆮 FastAttack ��钅�頣��
+--==================================================
+local toggleLabel = Instance.new("TextLabel")
+toggleLabel.Position = UDim2.new(0,10,0,10)
+toggleLabel.Size = UDim2.new(1,-20,0,20)
+toggleLabel.BackgroundTransparency = 1
+toggleLabel.Text = "FastAttack ��钅��"
+toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+toggleLabel.Font = Enum.Font.Gotham
+toggleLabel.TextSize = 12
+toggleLabel.TextColor3 = THEME.Text
+toggleLabel.Parent = pages[1]
+
+local toggle = Instance.new("Frame")
+toggle.Size = UDim2.new(0,44,0,22)
+toggle.Position = UDim2.new(1,-58,0,10)
+toggle.BackgroundColor3 = Color3.fromRGB(70,70,80)
+toggle.Parent = pages[1]
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(1,0)
+toggleCorner.Parent = toggle
+
+local knob = Instance.new("Frame")
+knob.Size = UDim2.new(0,18,0,18)
+knob.Position = UDim2.new(0,2,0.5,-9)
+knob.BackgroundColor3 = Color3.fromRGB(240,240,240)
+knob.Parent = toggle
+
+local knobCorner = Instance.new("UICorner")
+knobCorner.CornerRadius = UDim.new(1,0)
+knobCorner.Parent = knob
+
+local toggleOn = false
+
+toggle.InputBegan:Connect(function(input)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    toggleOn = not toggleOn
+
+    TweenService:Create(toggle, TweenInfo.new(0.2),
+        {BackgroundColor3 = toggleOn and THEME.Main or Color3.fromRGB(70,70,80)}
+    ):Play()
+
+    TweenService:Create(knob, TweenInfo.new(0.2),
+        {Position = toggleOn and UDim2.new(1,-20,0.5,-9) or UDim2.new(0,2,0.5,-9)}
+    ):Play()
+
+    _G.FastAttackEnabled = toggleOn
+end)
+
+--==================================================
+-- FastAttack �單𧋦�㟲���
+--==================================================
+_G.FastAttackEnabled = _G.FastAttackEnabled or false
+
+local Character = player.Character or player.CharacterAdded:Wait()
+local Enemies = workspace:WaitForChild("Enemies")
+local Characters = workspace:WaitForChild("Characters")
+local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
+local RegisterHit = Net:WaitForChild("RE/RegisterHit")
+
+local DETECT_RANGE = 10000
+local HITBOX_SIZE = Vector3.new(450,450,450)
+local ATTACK_INTERVAL = 0
+
+local function Alive(char)
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
+end
+
+local function GetPart(enemy)
+    return enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head")
+end
+
+local HRP
+local ORIGINAL_SIZE
+
+local function ExpandHRP()
+    HRP = Character:FindFirstChild("HumanoidRootPart")
+    if not HRP then return end
+    ORIGINAL_SIZE = ORIGINAL_SIZE or HRP.Size
+    HRP.Size = HITBOX_SIZE
+    HRP.Transparency = 1
+    HRP.LocalTransparencyModifier = 1
+    HRP.CanCollide = false
+end
+
+local function RestoreHRP()
+    if HRP and ORIGINAL_SIZE then
+        HRP.Size = ORIGINAL_SIZE
+    end
+end
+
+local function CollectTargets()
+    local targets = {}
+    local basePart
+    local myRoot = Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil, targets end
+
+    local function Scan(folder)
+        for _, enemy in ipairs(folder:GetChildren()) do
+            if enemy ~= Character and Alive(enemy) then
+                local part = GetPart(enemy)
+                if part and (part.Position - myRoot.Position).Magnitude <= DETECT_RANGE then
+                    targets[#targets+1] = {enemy, part}
+                    basePart = basePart or part
+                end
+            end
+        end
+    end
+
+    Scan(Enemies)
+    Scan(Characters)
+    return basePart, targets
+end
+
+local lastAttack = 0
+RunService.Heartbeat:Connect(function()
+    if not _G.FastAttackEnabled then return end
+    if os.clock() - lastAttack < ATTACK_INTERVAL then return end
+    lastAttack = os.clock()
+
+    local basePart, targets = CollectTargets()
+    if basePart and #targets > 0 then
+        ExpandHRP()
+        RegisterAttack:FireServer(0)
+        RegisterHit:FireServer(basePart, targets)
+        RestoreHRP()
+    end
+end)
+
+player.CharacterAdded:Connect(function(char)
+    Character = char
+    ORIGINAL_SIZE = nil
+end)
+
+print("��袐 憭𡁻�蝐� UI + FastAttack 撌脣�笔��")
