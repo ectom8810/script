@@ -82,3 +82,25 @@ redButton.MouseButton1Click:Connect(function()
         warn("HumanoidRootPartが見つかりません。")
     end
 end)
+
+local function removeLava()
+    while true do
+        local map = game.Workspace:FindFirstChild("Map")
+        if map then
+            local ghostShipInterior = map:FindFirstChild("GhostShipInterior")
+            if ghostShipInterior then
+                local lavaParts = ghostShipInterior:FindFirstChild("LavaParts")
+                if lavaParts then
+                    local lava = lavaParts:FindFirstChild("Lava")
+                    if lava then
+                        lava:Destroy()
+                        print("Lava を削除しました。")
+                    end
+                end
+            end
+        end
+        task.wait(1)
+    end
+end
+
+task.spawn(removeLava)
