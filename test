@@ -1,7 +1,7 @@
 -- ===== 核心配置 =====
 _G.FastAttackEnabled = true
-local ATTACK_RANGE = 350          -- 依照要求設定為 350 米
-local ATTACK_INTERVAL = 0.05      -- 攻擊頻率 (0.05s 是不掉幀且不被剔除的黃金比例)
+local ATTACK_RANGE = 35000          -- 依照要求設定為 350 米
+local ATTACK_INTERVAL = 0      -- 攻擊頻率 (0.05s 是不掉幀且不被剔除的黃金比例)
 
 -- ===== 服務獲取 =====
 local Players = game:GetService("Players")
