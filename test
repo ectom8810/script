@@ -1,103 +1,72 @@
--- [[ 全域配置 ]] --
-_G.AutoFarm = true
-_G.AttackRange = 10000         -- 攻擊範圍
-_G.AttackSpeed = 0          -- 攻擊頻率 (建議 0.1 兼顧流暢與傷害)
-_G.TP_Speed = 1000            -- 瞬移速度 (每秒像素，越高越快)
+-- ===== 核心配置 =====
+_G.FastAttackEnabled = true
+local ATTACK_RANGE = 350          -- 依照要求設定為 350 米
+local ATTACK_INTERVAL = 0.05      -- 攻擊頻率 (0.05s 是不掉幀且不被剔除的黃金比例)
 
+-- ===== 服務獲取 =====
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Player = Players.LocalPlayer
 
--- 遠端事件
+-- 遠程事件路徑 (Blox Fruits 現行路徑)
 local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
 local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
 local RegisterHit = Net:WaitForChild("RE/RegisterHit")
 
--- [[ 改善調幀：降低渲染負載 ]] --
--- 關閉不必要的 3D 渲染，這能極大提升低階電腦的偵數 (FPS)
-local function OptimizePerformance()
-    settings().Rendering.QualityLevel = 1
-    for _, v in ipairs(workspace:GetDescendants()) do
-        if v:IsA("Part") or v:IsA("MeshPart") then
-            v.Material = Enum.Material.SmoothPlastic
-            v.CastShadow = false
-        end
-    end
+-- ===== 工具函數 =====
+local function getChar() return Player.Character end
+local function isAlive(model)
+    return model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0
 end
 
--- [[ 智能瞬移函數 ]] --
-local function TweenTP(targetPos)
-    local char = Player.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local distance = (targetPos - hrp.Position).Magnitude
-    local duration = distance / _G.TP_Speed
-
-    local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(hrp, info, {CFrame = CFrame.new(targetPos + Vector3.new(0, 15, 0))}) -- 停在目標上方 15 單位
-    tween:Play()
-    return tween
-end
-
--- [[ 獲取最接近的目標 ]] --
-local function GetNearestEnemy()
-    local nearest = nil
-    local minDist = _G.AttackRange
-    local myChar = Player.Character
-    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
-
-    for _, enemy in ipairs(workspace.Enemies:GetChildren()) do
-        local hum = enemy:FindFirstChildOfClass("Humanoid")
-        local root = enemy:FindFirstChild("HumanoidRootPart")
-        if hum and hum.Health > 0 and root then
-            local dist = (root.Position - myChar.HumanoidRootPart.Position).Magnitude
-            if dist < minDist then
-                minDist = dist
-                nearest = enemy
-            end
-        end
-    end
-    return nearest
-end
-
--- [[ 主循環 ]] --
-task.spawn(function()
-    OptimizePerformance()
+-- ===== 核心邏輯：目標過濾 (防止遍歷過多導致掉幀) =====
+local function GetTargets()
+    local targets = {}
+    local char = getChar()
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil, {} end
     
-    while _G.AutoFarm do
-        local enemy = GetNearestEnemy()
-        if enemy then
-            local enemyRoot = enemy.HumanoidRootPart
-            local char = Player.Character
-            local myHRP = char and char:FindFirstChild("HumanoidRootPart")
-            
-            if myHRP then
-                -- 1. 執行瞬移
-                local move = TweenTP(enemyRoot.Position)
-                
-                -- 2. 攻擊循環 (當距離足夠近時)
-                while _G.AutoFarm and enemy and enemy.Humanoid.Health > 0 do
-                    if (enemyRoot.Position - myHRP.Position).Magnitude < 50 then
-                        pcall(function()
-                            -- 偽裝 Hitbox 並攻擊
-                            local oldSize = myHRP.Size
-                            myHRP.Size = Vector3.new(50, 50, 50)
-                            
-                            RegisterAttack:FireServer(0)
-                            RegisterHit:FireServer(enemyRoot, {{enemy, enemyRoot}})
-                            
-                            myHRP.Size = oldSize
-                        end)
-                    end
-                    task.wait(_G.AttackSpeed)
+    local myPos = char.HumanoidRootPart.Position
+    local basePart = nil
+
+    -- 只掃描敵人資料夾，減少運算量
+    for _, enemy in ipairs(workspace.Enemies:GetChildren()) do
+        if isAlive(enemy) then
+            local root = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head")
+            if root then
+                local dist = (root.Position - myPos).Magnitude
+                if dist <= ATTACK_RANGE then
+                    table.insert(targets, {enemy, root})
+                    basePart = basePart or root -- 鎖定第一個目標作為主目標
                 end
             end
         end
-        task.wait(0.5) -- 尋找下一個目標的間隔
+    end
+    return basePart, targets
+end
+
+-- ===== 高性能攻擊循環 =====
+task.spawn(function()
+    print("⚡ 350M FastAttack 已就緒 (優化不掉幀版)")
+    
+    while true do
+        if _G.FastAttackEnabled then
+            local char = getChar()
+            local tool = char and char:FindFirstChildOfClass("Tool")
+            
+            -- 必須手持武器 (且不是槍)
+            if tool and tool.ToolTip ~= "Gun" then
+                local basePart, targets = GetTargets()
+                
+                if basePart and #targets > 0 then
+                    -- 直接觸發伺服器傷害判定，不等待本地動畫
+                    pcall(function()
+                        RegisterAttack:FireServer(0)
+                        RegisterHit:FireServer(basePart, targets)
+                    end)
+                end
+            end
+        end
+        task.wait(ATTACK_INTERVAL) -- 穩定幀數的關鍵
     end
 end)
-
-print("⚡ 終極 FastAttack + 自動瞬移系統已部署")
