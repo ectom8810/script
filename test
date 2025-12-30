@@ -1,148 +1,103 @@
--- ===== 重複匯入安全 Loader =====
+-- [[ 全域配置 ]] --
+_G.AutoFarm = true
+_G.AttackRange = 5000         -- 攻擊範圍
+_G.AttackSpeed = 0.1          -- 攻擊頻率 (建議 0.1 兼顧流暢與傷害)
+_G.TP_Speed = 1000            -- 瞬移速度 (每秒像素，越高越快)
 
--- 如果已存在舊實例 → 先卸載
-if _G.__FAST_ATTACK_LOADER__ then
-    _G.__FAST_ATTACK_LOADER__.Stop()
-end
-
--- 建立新 Loader
-local Loader = {
-    Running = true,
-    Connections = {}
-}
-
-_G.__FAST_ATTACK_LOADER__ = Loader
-
--- ===== 快捷連線註冊 =====
-local function Track(conn)
-    table.insert(Loader.Connections, conn)
-    return conn
-end
-
--- ===== 停止 / 卸載 =====
-function Loader.Stop()
-    if not Loader.Running then return end
-    Loader.Running = false
-
-    for _, conn in ipairs(Loader.Connections) do
-        pcall(function()
-            conn:Disconnect()
-        end)
-    end
-
-    Loader.Connections = {}
-    _G.__FAST_ATTACK_LOADER__ = nil
-
-    warn("⛔ FastAttack Loader 已卸載")
-end
-
---------------------------------------------------
--- 🔽 🔽 🔽 下面開始放你的「真正腳本」 🔽 🔽 🔽
---------------------------------------------------
-
-_G.FastAttackEnabled = true
-
--- ===== Services =====
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local Player = Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
 
-local Enemies = workspace:WaitForChild("Enemies")
-local Characters = workspace:WaitForChild("Characters")
-
+-- 遠端事件
 local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
 local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
 local RegisterHit = Net:WaitForChild("RE/RegisterHit")
 
--- ===== 參數（重點）=====
-local DETECT_RANGE = 1000              -- 偵測敵人距離（穩）
-local HITBOX_SIZE = Vector3.new(450,450,450) -- 伺服器判定範圍
-local ATTACK_INTERVAL = 0             -- 0 = 每幀（可改 0.03 更穩）
-
--- ===== 工具 =====
-local function Alive(char)
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    return hum and hum.Health > 0
-end
-
-local function GetPart(enemy)
-    return enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head")
-end
-
--- ===== 偽裝 Hitbox =====
-local HRP
-local ORIGINAL_SIZE
-
-local function ExpandHRP()
-    HRP = Character:FindFirstChild("HumanoidRootPart")
-    if not HRP then return end
-
-    ORIGINAL_SIZE = ORIGINAL_SIZE or HRP.Size
-    HRP.Size = HITBOX_SIZE
-    HRP.Transparency = 1
-    HRP.LocalTransparencyModifier = 1
-    HRP.CanCollide = false
-end
-
-local function RestoreHRP()
-    if HRP and ORIGINAL_SIZE then
-        HRP.Size = ORIGINAL_SIZE
+-- [[ 改善調幀：降低渲染負載 ]] --
+-- 關閉不必要的 3D 渲染，這能極大提升低階電腦的偵數 (FPS)
+local function OptimizePerformance()
+    settings().Rendering.QualityLevel = 1
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Part") or v:IsA("MeshPart") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.CastShadow = false
+        end
     end
 end
 
--- ===== 收集目標 =====
-local function CollectTargets()
-    local targets = {}
-    local basePart
-    local myRoot = Character:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return nil, targets end
+-- [[ 智能瞬移函數 ]] --
+local function TweenTP(targetPos)
+    local char = Player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
-    local function Scan(folder)
-        for _, enemy in ipairs(folder:GetChildren()) do
-            if enemy ~= Character and Alive(enemy) then
-                local part = GetPart(enemy)
-                if part and (part.Position - myRoot.Position).Magnitude <= DETECT_RANGE then
-                    targets[#targets+1] = {enemy, part}
-                    basePart = basePart or part
-                end
+    local distance = (targetPos - hrp.Position).Magnitude
+    local duration = distance / _G.TP_Speed
+
+    local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(hrp, info, {CFrame = CFrame.new(targetPos + Vector3.new(0, 15, 0))}) -- 停在目標上方 15 單位
+    tween:Play()
+    return tween
+end
+
+-- [[ 獲取最接近的目標 ]] --
+local function GetNearestEnemy()
+    local nearest = nil
+    local minDist = _G.AttackRange
+    local myChar = Player.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
+
+    for _, enemy in ipairs(workspace.Enemies:GetChildren()) do
+        local hum = enemy:FindFirstChildOfClass("Humanoid")
+        local root = enemy:FindFirstChild("HumanoidRootPart")
+        if hum and hum.Health > 0 and root then
+            local dist = (root.Position - myChar.HumanoidRootPart.Position).Magnitude
+            if dist < minDist then
+                minDist = dist
+                nearest = enemy
             end
         end
     end
-
-    Scan(Enemies)
-    Scan(Characters)
-
-    return basePart, targets
+    return nearest
 end
 
--- ===== FastAttack 主循環 =====
-local lastAttack = 0
-
-RunService.Heartbeat:Connect(function()
-    if not _G.FastAttackEnabled then return end
-    if os.clock() - lastAttack < ATTACK_INTERVAL then return end
-    lastAttack = os.clock()
-
-    local basePart, targets = CollectTargets()
-    if basePart and #targets > 0 then
-        -- 只在這一幀放大
-        ExpandHRP()
-
-        RegisterAttack:FireServer(0)
-        RegisterHit:FireServer(basePart, targets)
-
-        -- 立刻還原
-        RestoreHRP()
+-- [[ 主循環 ]] --
+task.spawn(function()
+    OptimizePerformance()
+    
+    while _G.AutoFarm do
+        local enemy = GetNearestEnemy()
+        if enemy then
+            local enemyRoot = enemy.HumanoidRootPart
+            local char = Player.Character
+            local myHRP = char and char:FindFirstChild("HumanoidRootPart")
+            
+            if myHRP then
+                -- 1. 執行瞬移
+                local move = TweenTP(enemyRoot.Position)
+                
+                -- 2. 攻擊循環 (當距離足夠近時)
+                while _G.AutoFarm and enemy and enemy.Humanoid.Health > 0 do
+                    if (enemyRoot.Position - myHRP.Position).Magnitude < 50 then
+                        pcall(function()
+                            -- 偽裝 Hitbox 並攻擊
+                            local oldSize = myHRP.Size
+                            myHRP.Size = Vector3.new(50, 50, 50)
+                            
+                            RegisterAttack:FireServer(0)
+                            RegisterHit:FireServer(enemyRoot, {{enemy, enemyRoot}})
+                            
+                            myHRP.Size = oldSize
+                        end)
+                    end
+                    task.wait(_G.AttackSpeed)
+                end
+            end
+        end
+        task.wait(0.5) -- 尋找下一個目標的間隔
     end
 end)
 
--- ===== 角色重生處理 =====
-Player.CharacterAdded:Connect(function(char)
-    Character = char
-    ORIGINAL_SIZE = nil
-end)
-
-
+print("⚡ 終極 FastAttack + 自動瞬移系統已部署")
