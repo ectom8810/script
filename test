@@ -1,7 +1,7 @@
 -- [[ 全域配置 ]] --
 _G.AutoFarm = true
-_G.AttackRange = 5000         -- 攻擊範圍
-_G.AttackSpeed = 0.1          -- 攻擊頻率 (建議 0.1 兼顧流暢與傷害)
+_G.AttackRange = 10000         -- 攻擊範圍
+_G.AttackSpeed = 0          -- 攻擊頻率 (建議 0.1 兼顧流暢與傷害)
 _G.TP_Speed = 1000            -- 瞬移速度 (每秒像素，越高越快)
 
 local Players = game:GetService("Players")
