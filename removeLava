@@ -9,7 +9,7 @@ local function removeLava()
                     local lava = lavaParts:FindFirstChild("Lava")
                     if lava then
                         lava:Destroy()
-                        print("Lava を削除しました。")
+                        
                     end
                 end
             end
